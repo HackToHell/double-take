@@ -153,6 +153,8 @@ module.exports.frigate = ({ id, camera, topic }) => {
   const { topicURL } = require('../util/frigate.util');
   const {
     url,
+    username,
+    password,
     events,
     attempts,
     image,
@@ -172,6 +174,7 @@ module.exports.frigate = ({ id, camera, topic }) => {
 
   return objectKeysToUpperCase({
     url: { frigate: url, snapshot, latest },
+    login: { login: username, password },
     attempts,
     stop_on_match: stopOnMatch,
     min_area: minArea,

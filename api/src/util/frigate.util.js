@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { FRIGATE, MQTT } = require('../constants')();
+const frigateAuth = require('./frigate-auth.util');
 
 const frigate = this;
 
@@ -18,13 +19,30 @@ module.exports.subLabel = async (topic, id, best) => {
       `Confidences must be greater than 0 and smaller than 1, but now it's ${confidences}`
     );
   }
-  await axios({
-    method: 'post',
-    url: `${this.topicURL(topic)}/api/events/${id}/sub_label`,
-    data: { subLabel: names, subLabelScore: confidences },
-  }).catch((error) =>
-    console.error(`post sublabel to frigate for event ${id} error: ${error.message}`)
-  );
+
+  const baseURL = this.topicURL(topic);
+  const username = FRIGATE.USERNAME;
+  const password = FRIGATE.PASSWORD;
+  
+  if (username && password) {
+    // Use authenticated request
+    await frigateAuth.authenticatedRequest({
+      method: 'post',
+      url: `${baseURL}/api/events/${id}/sub_label`,
+      data: { subLabel: names, subLabelScore: confidences },
+    }, baseURL, username, password).catch((error) =>
+      console.error(`post sublabel to frigate for event ${id} error: ${error.message}`)
+    );
+  } else {
+    // Use unauthenticated request (backward compatibility)
+    await axios({
+      method: 'post',
+      url: `${baseURL}/api/events/${id}/sub_label`,
+      data: { subLabel: names, subLabelScore: confidences },
+    }).catch((error) =>
+      console.error(`post sublabel to frigate for event ${id} error: ${error.message}`)
+    );
+  }
 };
 
 module.exports.checks = async ({
@@ -93,12 +111,25 @@ module.exports.checks = async ({
 
 module.exports.status = async (topic) => {
   try {
-    const request = await axios({
-      method: 'get',
-      url: `${this.topicURL(topic)}/api/version`,
-      timeout: 5 * 1000,
-    });
-    return request.data;
+    const baseURL = this.topicURL(topic);
+    const { username, password } = FRIGATE.LOGIN || {};
+    
+    if (username && password) {
+      // Use authenticated request
+      return await frigateAuth.authenticatedRequest({
+        method: 'get',
+        url: `${baseURL}/api/version`,
+        timeout: 5 * 1000,
+      }, baseURL, username, password);
+    } else {
+      // Use unauthenticated request (backward compatibility)
+      const request = await axios({
+        method: 'get',
+        url: `${baseURL}/api/version`,
+        timeout: 5 * 1000,
+      });
+      return request.data;
+    }
   } catch (error) {
     throw new Error(`frigate status error: ${error.message}`);
   }
