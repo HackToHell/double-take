@@ -112,15 +112,17 @@ module.exports.checks = async ({
 module.exports.status = async (topic) => {
   try {
     const baseURL = this.topicURL(topic);
-    const { username, password } = FRIGATE.LOGIN || {};
+    const username = FRIGATE.USERNAME;
+    const password = FRIGATE.PASSWORD;
     
     if (username && password) {
       // Use authenticated request
-      return await frigateAuth.authenticatedRequest({
+      const request = await frigateAuth.authenticatedRequest({
         method: 'get',
         url: `${baseURL}/api/version`,
         timeout: 5 * 1000,
       }, baseURL, username, password);
+      return request.data;
     } else {
       // Use unauthenticated request (backward compatibility)
       const request = await axios({

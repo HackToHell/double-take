@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const filesystem = require('./fs.util');
 const database = require('./db.util');
 const { parse, digest } = require('./auth.util');
+const frigateAuth = require('./frigate-auth.util');
 const mask = require('./mask-image.util');
 const sleep = require('./sleep.util');
 const opencv = require('./opencv');
@@ -195,6 +196,40 @@ module.exports.process = async ({ camera, detector, tmp, errors }) => {
 module.exports.isValidURL = async ({ auth = false, type, url }) => {
   const validOptions = ['image/jpg', 'image/jpeg', 'image/png'];
   try {
+    // Check if this is a Frigate URL that needs authentication
+    const frigateConfig = config()?.frigate;
+    const isFrigateURL = frigateConfig?.url && url.includes(frigateConfig.url);
+    const hasFrigateAuth = frigateConfig?.username && frigateConfig?.password;
+    
+    if (isFrigateURL && hasFrigateAuth) {
+      // Use Frigate authentication
+      const baseURL = frigateConfig.url;
+      const username = frigateConfig.username;
+      const password = frigateConfig.password;
+      
+      try {
+        const { headers } = await frigateAuth.authenticatedRequest({
+          method: 'GET',
+          url,
+          timeout: 5000,
+        }, baseURL, username, password);
+        
+        const isValid = !!validOptions.filter((opt) => headers['content-type'].includes(opt)).length;
+        
+        if (!isValid) {
+          console.error(
+            `url validation failed for ${type}: ${url} - ${headers['content-type']} not valid`
+          );
+        }
+        
+        return isValid;
+      } catch (frigateError) {
+        console.error(`Frigate authentication error: ${frigateError.message}`);
+        return false;
+      }
+    }
+    
+    // Fall back to existing digest authentication logic
     const isDigest = digest.exists(url) || auth === 'digest';
     const digestAuth = isDigest ? digest(parse.url(url)) : false;
     const opts = { method: 'GET', url: isDigest ? digest.strip(url) : url, timeout: 5000 };
@@ -222,6 +257,33 @@ module.exports.isValidURL = async ({ auth = false, type, url }) => {
 
 module.exports.stream = async (url) => {
   try {
+    // Check if this is a Frigate URL that needs authentication
+    const frigateConfig = config()?.frigate;
+    const isFrigateURL = frigateConfig?.url && url.includes(frigateConfig.url);
+    const hasFrigateAuth = frigateConfig?.username && frigateConfig?.password;
+    
+    if (isFrigateURL && hasFrigateAuth) {
+      // Use Frigate authentication
+      const baseURL = frigateConfig.url;
+      const username = frigateConfig.username;
+      const password = frigateConfig.password;
+      
+      try {
+        const response = await frigateAuth.authenticatedRequest({
+          method: 'GET',
+          url,
+          responseType: 'arraybuffer',
+          timeout: 5000,
+        }, baseURL, username, password);
+        
+        return response.data;
+      } catch (frigateError) {
+        console.error(`Frigate authentication error: ${frigateError.message}`);
+        return null;
+      }
+    }
+    
+    // Fall back to existing digest authentication logic
     const isDigest = digest.exists(url);
     const digestAuth = isDigest ? digest(isDigest) : false;
     const opts = {

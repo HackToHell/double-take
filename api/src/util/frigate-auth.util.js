@@ -150,7 +150,7 @@ class FrigateAuth {
    * @param {string} baseURL - The Frigate base URL
    * @param {string} username - The username
    * @param {string} password - The password
-   * @returns {Promise<Object>} - The response data
+   * @returns {Promise<Object>} - The full response object
    */
   async authenticatedRequest(options, baseURL, username, password) {
     const token = await this.getValidToken(baseURL, username, password);
@@ -165,7 +165,7 @@ class FrigateAuth {
 
     try {
       const response = await axios(requestOptions);
-      return response.data;
+      return response;
     } catch (error) {
       // If we get a 401, try to refresh token and retry once
       if (error.response?.status === 401) {
@@ -177,7 +177,7 @@ class FrigateAuth {
         requestOptions.headers.Cookie = `frigate_token=${newToken}`;
         
         const retryResponse = await axios(requestOptions);
-        return retryResponse.data;
+        return retryResponse;
       }
       
       throw error;
